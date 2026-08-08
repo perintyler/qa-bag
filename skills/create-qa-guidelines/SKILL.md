@@ -1,0 +1,163 @@
+---
+name: create-qa-guidelines
+description: Author a QA.md checklist for a module - executable manual-QA guidelines that an AI agent runs to verify the module works end-to-end
+allowed-tools: Bash, Read, Glob, Grep, Write
+args:
+  - name: module
+    description: Path to the module to write QA guidelines for (default: current directory)
+    required: false
+---
+
+# Create QA Guidelines
+
+Write a `QA.md` file for a module. A QA.md is an executable manual-QA checklist: it mimics how a human would sanity-check software by hand — install it, run it, poke at it, look at what comes out. It complements unit tests rather than replacing them. Unit tests verify internals; QA.md verifies the module actually works from a user's perspective, which is exactly where AI-generated code tends to fail (everything compiles, tests pass, but the thing doesn't run).
+
+The `/qa` skill discovers every QA.md in a project and executes each one via a subagent, so the file you write here must be runnable by an agent with no additional context.
+
+## Where QA guidelines pay off
+
+QA guidelines have a cost (authoring, runtime, maintenance), so target them where they catch what nothing else does:
+
+- **Process boundaries** — CLIs invoked with real args, HTTP servers hit with real requests, MCP servers doing a real handshake. Unit tests stop at the seam; QA crosses it. This is the highest-value target.
+- **Wiring and config** — the module builds *and the built artifact runs*: ports bind, env vars resolve, services register, entry points in `package.json` actually exist. Broken wiring is invisible to unit tests.
+- **After AI codegen sessions** — the original motivation. Everything compiles and tests pass, but does the thing run? Run `/qa --module=<path>` on whatever was just generated before considering it done.
+- **Pre-release gates** — run `/qa` over the modules touched since the last release tag before shipping.
+- **Fresh checkouts and dependency upgrades** — offline checks double as onboarding validation (does a clean clone build and run?) and as a canary after Node/dependency bumps.
+
+Conversely, a pure library with strong unit tests gets little from a long QA.md — give it a thin one (build, import the main export, one smoke call) or none at all.
+
+## Workflow
+
+### Step 1: Understand the module
+
+Before writing anything, learn what the module *does* and how a user invokes it:
+
+```bash
+cat package.json        # scripts, bin entries, dependencies
+ls                      # entry points, README, existing tests
+```
+
+- Read the README and main entry point.
+- Identify the **user journeys**: the 3–7 things someone actually does with this module (build it, run the CLI with real args, hit the server endpoint, import the package and call its main export).
+- Identify **external dependencies**: database, network services, MCP servers, credentials. These determine whether you need the offline/online split (below).
+
+### Step 2: Draft the QA.md
+
+Place it at the module root. Use this structure — the runner and report aggregator depend on it:
+
+````markdown
+<!-- tools: Bash,Read -->
+# QA: <module-name>
+
+One sentence on what this module does.
+
+## Requirements
+
+- Tools needed (node, pnpm, curl, jq, ...)
+- Env vars needed, and what happens without them
+
+## Setup
+
+```bash
+pnpm install
+pnpm build
+```
+
+## Test Steps
+
+### 1. <short imperative name>
+
+```bash
+<exact command to run>
+```
+
+**Expected:** exit code 0, output contains "...", no stack trace.
+
+### 2. ...
+
+## Success Criteria
+
+- [ ] Build completes without errors
+- [ ] <criterion traceable to a specific step>
+- [ ] ...
+
+## Cleanup
+
+```bash
+<kill servers, remove temp files>
+```
+````
+
+Notes on each section:
+
+- **`<!-- tools: ... -->` comment** — controls which tools the QA runner agent may use. Default is `Bash,Read`. Keep it minimal (least privilege); only add more if a step genuinely needs them.
+- **Test Steps** — numbered `### N. name` headings. Each step is one exact command in a code block followed by an `**Expected:**` line. The runner executes the command verbatim and compares against Expected.
+- **Cleanup** — the runner executes this even when steps fail. Anything Setup starts (servers, containers, temp dirs) must be torn down here.
+
+### Step 3: Apply the techniques that make QA guidelines effective
+
+These are the patterns that work well in practice:
+
+1. **Assert observable behavior, not internals.** Expected lines should reference exit codes, output substrings, HTTP status codes, files existing — things the runner can literally check. Good: `**Expected:** exit code 0, JSON output with a "version" key, no stack trace.` Bad: `**Expected:** the cache is warm.`
+
+2. **Split offline vs online checks** when the module has external dependencies. Group test steps under `### Offline checks` (build, type-check, CLI help — always runnable) and `### Online checks` (needs DB/network/creds). State explicitly in the online section how to detect the dependency is unavailable and that steps should be marked SKIPPED — not FAILED — when it is. This keeps QA green on a fresh checkout while still exercising integrations when available.
+
+3. **Test the failure paths too.** At least one step should feed the module bad input (missing arg, bad flag, nonexistent file) and expect a *clean* error: nonzero exit, helpful message, no stack trace. Ungraceful failure is the most common defect QA catches.
+
+4. **Keep it fast and focused.** 5–15 steps covering distinct user journeys. If a step just re-verifies what a unit test already covers, cut it. Total runtime under ~2 minutes per module is the target — QA runs on every module in parallel, and the slowest module gates the report.
+
+5. **Make steps idempotent.** QA runs repeatedly on the same checkout. Steps must not depend on prior-run state; use `mkdir -p`, fixed temp paths under `/tmp` cleaned in Cleanup, and ports unlikely to collide.
+
+6. **Use a `mocks/` directory for canned data.** If a step needs fixture input (sample API responses, config files), put them in `mocks/` at the module root and reference them from Setup/Test Steps. Never require real credentials for offline steps.
+
+7. **Success criteria must be checkable.** Each `- [ ]` item maps to one or more test steps. The report aggregator counts checked/unchecked boxes, so vague criteria ("code is clean") pollute the report. 5–13 criteria is typical.
+
+8. **No interactive checkpoints.** Every step must be executable by an agent without human input — no "say 'Approved' and observe the transition" steps. If a workflow genuinely needs multi-turn human interaction, cover the same state transitions with programmatic E2E tests instead, or put them under a `## Manual Checks` section that the runner ignores.
+
+### QA for Barry packs
+
+Packs (barry-pack.yaml + defineTool() tools + skills + MCP servers) fail in ways generic checks miss: the manifest greps clean but the loader rejects it, tools compile but fail to import under Node's strip-only type stripping (no TS parameter properties!), the MCP launcher binary is missing so the server silently never connects. A pack QA.md should cover this canonical checklist — see `~/repos/packs/temporal/QA.md` for a complete example:
+
+1. **Compile** — `npx tsc --noEmit`
+2. **Tools export** — tsx-import the tools module, assert the exact expected tool names
+3. **Field validation** — every tool has namespace/access/name/description/handler
+4. **Invoke one real handler** — call `someTool.handler({})` via tsx and assert the shape; do NOT re-implement the handler's logic inline (that verifies the CLI, not the tool)
+5. **Failure path** — the exec helper throws its typed error on a bad subcommand
+6. **Manifest keys** — grep for manifestVersion, name, mcp-servers, tools entry, traits, dependencies
+7. **Skills linked** — SKILL.md exists at each expected `skills/<ns>/<name>/` path
+8. **Loader check** — prefer the programmatic path (offline, no barry CLI needed): tsx-import `parseManifest`/`loadPack`/`getAllTraits` from `@barry/packs` and assert the manifest parses, traits resolve, and MCP servers appear (see `~/repos/packs/clickhouse/QA.md` steps 2–3). `barry pack show <name>` works as an online alternative and also renders dependency ✓/✗
+9. **MCP server check** (online) — for `type: http` servers, curl the URL and expect 401/200; for command servers, do a real stdio initialize handshake:
+
+```bash
+node -e '
+const { spawn } = require("child_process");
+const p = spawn("<command>", ["<args...>"], { stdio: ["pipe", "pipe", "ignore"] });
+const req = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "qa", version: "1.0" } } }) + "\n";
+let buf = "";
+p.stdout.on("data", (d) => {
+  buf += d.toString();
+  if (buf.includes("\"result\"")) { console.log("OK — MCP initialize succeeded"); p.kill(); process.exit(0); }
+});
+p.on("error", (e) => { console.log("FAIL — spawn: " + e.message); process.exit(1); });
+p.stdin.write(req);
+setTimeout(() => { console.log("FAIL — no initialize response"); p.kill(); process.exit(1); }, 60000);
+'
+```
+
+Pack repos live outside the barry monorepo (`~/repos/packs/*`, each its own git repo) — run `/qa` from the pack root. Steps needing the `barry` CLI or launcher binaries go under Online checks with skip semantics.
+
+### Step 4: Validate the QA.md by running it
+
+A QA.md with broken commands is worse than none. Dry-run it yourself:
+
+```bash
+# From the module directory, execute Setup then each test step's command
+# and confirm the Expected line is accurate.
+```
+
+Fix any command that doesn't behave as its Expected line claims — either the command, the expectation, or the module itself is wrong, and you need to know which.
+
+### Step 5: Housekeeping
+
+- If the module lives in a directory the project's QA should skip (examples, fixtures), add it to the project-root `.qaignore` instead of writing a QA.md.
+- If the module directory has no module marker (`package.json`, `Makefile`, etc.), QA discovery won't flag it as missing coverage — a QA.md still works there but must be discoverable at the module root.
