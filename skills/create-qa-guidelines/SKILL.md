@@ -91,7 +91,7 @@ pnpm build
 Notes on each section:
 
 - **`<!-- tools: ... -->` comment** — controls which tools the QA runner agent may use. Default is `Bash,Read`. Keep it minimal (least privilege); only add more if a step genuinely needs them.
-- **Test Steps** — numbered `### N. name` headings. Each step is one exact command in a code block followed by an `**Expected:**` line. The runner executes the command verbatim and compares against Expected.
+- **Test Steps** — numbered `### N. name` headings. Each step is one exact command in a code bag followed by an `**Expected:**` line. The runner executes the command verbatim and compares against Expected.
 - **Cleanup** — the runner executes this even when steps fail. Anything Setup starts (servers, containers, temp dirs) must be torn down here.
 
 ### Step 3: Apply the techniques that make QA guidelines effective
@@ -114,9 +114,9 @@ These are the patterns that work well in practice:
 
 8. **No interactive checkpoints.** Every step must be executable by an agent without human input — no "say 'Approved' and observe the transition" steps. If a workflow genuinely needs multi-turn human interaction, cover the same state transitions with programmatic E2E tests instead, or put them under a `## Manual Checks` section that the runner ignores.
 
-### QA for Barry packs
+### QA for Barry bags
 
-Packs (barry-pack.yaml + defineTool() tools + skills + MCP servers) fail in ways generic checks miss: the manifest greps clean but the loader rejects it, tools compile but fail to import under Node's strip-only type stripping (no TS parameter properties!), the MCP launcher binary is missing so the server silently never connects. A pack QA.md should cover this canonical checklist — see `~/repos/packs/temporal/QA.md` for a complete example:
+Bags (bag.yaml + defineTool() tools + skills + MCP servers) fail in ways generic checks miss: the manifest greps clean but the loader rejects it, tools compile but fail to import under Node's strip-only type stripping (no TS parameter properties!), the MCP launcher binary is missing so the server silently never connects. A bag QA.md should cover this canonical checklist — see `~/repos/bags/temporal/QA.md` for a complete example:
 
 1. **Compile** — `npx tsc --noEmit`
 2. **Tools export** — tsx-import the tools module, assert the exact expected tool names
@@ -125,7 +125,7 @@ Packs (barry-pack.yaml + defineTool() tools + skills + MCP servers) fail in ways
 5. **Failure path** — the exec helper throws its typed error on a bad subcommand
 6. **Manifest keys** — grep for manifestVersion, name, mcp-servers, tools entry, traits, dependencies
 7. **Skills linked** — SKILL.md exists at each expected `skills/<ns>/<name>/` path
-8. **Loader check** — prefer the programmatic path (offline, no barry CLI needed): tsx-import `parseManifest`/`loadPack`/`getAllTraits` from `@barry/packs` and assert the manifest parses, traits resolve, and MCP servers appear (see `~/repos/packs/clickhouse/QA.md` steps 2–3). `barry pack show <name>` works as an online alternative and also renders dependency ✓/✗
+8. **Loader check** — prefer the programmatic path (offline, no barry CLI needed): tsx-import `parseManifest`/`loadBag`/`getAllTraits` from `@barry/bags` and assert the manifest parses, traits resolve, and MCP servers appear (see `~/repos/bags/clickhouse/QA.md` steps 2–3). `barry bag show <name>` works as an online alternative and also renders dependency ✓/✗
 9. **MCP server check** (online) — for `type: http` servers, curl the URL and expect 401/200; for command servers, do a real stdio initialize handshake:
 
 ```bash
@@ -144,7 +144,7 @@ setTimeout(() => { console.log("FAIL — no initialize response"); p.kill(); pro
 '
 ```
 
-Pack repos live outside the barry monorepo (`~/repos/packs/*`, each its own git repo) — run `/qa` from the pack root. Steps needing the `barry` CLI or launcher binaries go under Online checks with skip semantics.
+Bag repos live outside the barry monorepo (`~/repos/bags/*`, each its own git repo) — run `/qa` from the bag root. Steps needing the `barry` CLI or launcher binaries go under Online checks with skip semantics.
 
 ### Step 4: Validate the QA.md by running it
 

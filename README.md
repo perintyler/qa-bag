@@ -81,7 +81,7 @@ A pure library with strong unit tests needs only a thin QA.md (build, import, on
 
 ## Usage
 
-**Preferred: the `/qa` skill** (from the `qa` pack in `packs/qa/`). It runs the same discover → run → aggregate → report flow via parallel subagents in the main session — no programmatic Claude invocation, no API key round-trips:
+**Preferred: the `/qa` skill** (from the `qa` bag in `bags/qa/`). It runs the same discover → run → aggregate → report flow via parallel subagents in the main session — no programmatic Claude invocation, no API key round-trips:
 
 ```
 /qa                        # whole project
@@ -90,12 +90,12 @@ A pure library with strong unit tests needs only a thin QA.md (build, import, on
 /qa --strict               # fail if any module lacks a QA.md
 ```
 
-The `qa` pack also ships a `create-qa-guidelines` skill for authoring new QA.md files.
+The `qa` bag also ships a `create-qa-guidelines` skill for authoring new QA.md files.
 
-Sessions opt into the skill via the **`qa` trait** — no profile pack enablement needed:
+Sessions opt into the skill via the **`qa` trait** — no profile bag enablement needed:
 
 ```bash
-barry pack sync-traits qa        # one-time: register the trait (with its skills) in the DB
+barry bag sync-traits qa        # one-time: register the trait (with its skills) in the DB
 barry start --traits qa          # CLI session with the /qa skill mounted
 ```
 
