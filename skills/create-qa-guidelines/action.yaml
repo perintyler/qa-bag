@@ -1,6 +1,6 @@
 version: 1
 name: create-qa-guidelines
-description: "TODO: describe create-qa-guidelines"
+description: Author a QA.md checklist for a module — an executable manual-QA guide an agent runs to verify the module works end to end. Use after generating code, or when a module needs QA coverage at its process boundaries.
 prompt: |-
   # Create QA Guidelines
 
