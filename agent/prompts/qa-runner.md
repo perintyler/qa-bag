@@ -11,7 +11,7 @@ Your job is to run QA tests and produce a report that determines whether the mod
 
 1. Read QA.md thoroughly
 2. Run any setup steps
-3. Execute each numbered test step by running the exact command in the code bag
+3. Execute each numbered test step by running the exact command in the code block
 4. Compare actual output to the Expected description
 5. After running all tests, review the Success Criteria section
 6. Determine the overall verdict: PASS only if ALL success criteria are satisfied

@@ -85,7 +85,7 @@ prompt: |-
   Notes on each section:
 
   - **`<!-- tools: ... -->` comment** — controls which tools the QA runner agent may use. Default is `Bash,Read`. Keep it minimal (least privilege); only add more if a step genuinely needs them.
-  - **Test Steps** — numbered `### N. name` headings. Each step is one exact command in a code bag followed by an `**Expected:**` line. The runner executes the command verbatim and compares against Expected.
+  - **Test Steps** — numbered `### N. name` headings. Each step is one exact command in a code block followed by an `**Expected:**` line. The runner executes the command verbatim and compares against Expected.
   - **Cleanup** — the runner executes this even when steps fail. Anything Setup starts (servers, containers, temp dirs) must be torn down here.
 
   ### Step 3: Apply the techniques that make QA guidelines effective
