@@ -1,6 +1,7 @@
 version: 1
 name: qa
 description: Run QA across a project - discover QA.md checklists, execute each via parallel subagents, aggregate verdicts into a report
+slash_command: true
 prompt: |-
   # QA Runner
 
