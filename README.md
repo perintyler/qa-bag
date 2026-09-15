@@ -99,7 +99,7 @@ barry bag sync-traits qa        # one-time: register the trait (with its skills)
 barry start --traits qa          # CLI session with the /qa skill mounted
 ```
 
-For server-spawned sessions, check `qa` in the web app's New Session traits picker, or make it a profile default with `barry profile add-traits <profile> qa`.
+For server-spawned sessions, check `qa` in the web app's New Session traits picker, or make it a default on the barry with `barry add-traits qa`.
 
 **Fallback: the bash orchestrator** — for headless/CI use, or outside a Claude session:
 
